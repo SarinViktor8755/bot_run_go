@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инструкция по добавлению тренировок</title>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes highlightPulse {
+            0% { background-color: #fff2cc; }
+            50% { background-color: #ffd966; }
+            100% { background-color: #fff2cc; }
+        }
+        @keyframes slideInLeft {
+            from { transform: translateX(-50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f7fa;
+        }
+        h1, h2 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            animation: fadeIn 1s ease-out, pulse 2s 1s infinite;
+        }
+        h2 {
+            margin-top: 40px;
+            color: #2980b9;
+            animation: fadeIn 0.8s ease-out;
+        }
+        .correct {
+            background-color: #e8f8f5;
+            padding: 15px;
+            border-left: 4px solid #2ecc71;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+            animation: slideInLeft 0.6s ease-out;
+            transition: transform 0.3s;
+        }
+        .correct:hover {
+            transform: translateX(5px);
+        }
+        .incorrect {
+            background-color: #fdedec;
+            padding: 15px;
+            border-left: 4px solid #e74c3c;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+            animation: slideInRight 0.6s ease-out;
+            transition: transform 0.3s;
+        }
+        .incorrect:hover {
+            transform: translateX(5px);
+        }
+        .example {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        .reason {
+            font-size: 0.95em;
+            color: #555;
+        }
+        .reason:before {
+            content: "→ ";
+            color: #7f8c8d;
+        }
+        .emoji {
+            font-size: 1.2em;
+        }
+        code {
+            background-color: #ebedef;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95em;
+        }
+
+        .requirements {
+            background-color: #fff2cc;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ff9900;
+            margin: 25px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            animation: fadeIn 1s ease-out, highlightPulse 3s 2;
+        }
+        ol, ul {
+            padding-left: 25px;
+        }
+        li {
+            margin-bottom: 10px;
+            animation: fadeIn 0.5s ease-out;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        a:hover {
+            color: #2980b9;
+            text-decoration: underline;
+        }
+        .stats-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 5px;
+            text-align: center;
+            margin: 20px auto;
+            animation: pulse 2s infinite;
+            transition: background-color 0.3s;
+        }
+        .stats-link:hover {
+            background-color: #2980b9;
+            text-decoration: none;
+            animation: none;
+        }
+        .important {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .requirement-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .requirement-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            min-width: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Инструкция по добавлению тренировок 🏃‍♂️</h1>
+
+    <div class="requirements">
+        <h2 style="margin-top: 0; text-align: center; color: #d35400;">ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ</h2>
+        
+        <div class="requirement-item">
+            <div class="requirement-icon">🔹</div>
+            <div>
+                <strong>1. Хештег #км</strong><br>
+                Сообщение <span class="important">должно содержать</span> хештег <code>#км</code> в любом месте текста
+            </div>
+        </div>
+        
+        <div class="requirement-item">
+            <div class="requirement-icon">🔹</div>
+            <div>
+                <strong>2. Знак + перед числом</strong><br>
+                Дистанция <span class="important">должна быть указана</span> в формате <code>+число</code> (например <code>+5</code> или <code>+10.5</code>)
+            </div>
+        </div>
+        
+        <div class="requirement-item">
+            <div class="requirement-icon">🔹</div>
+            <div>
+                <strong>3. Скриншот трека</strong><br>
+                К сообщению <span class="important">должно быть прикреплено фото</span> с треком из приложения для бега
+            </div>
+        </div>
+    </div>
+
+
+
+    <h2>✅ Примеры правильного оформления</h2>
+
+    <div class="correct">
+        <div class="example">1. "Тренировка 5 км сегодня утром #км +5"</div>
+        <div class="reason">Содержит <strong>хештег <code>#км</code></strong>, указана дистанция <strong><code>+5</code></strong>, приложен скриншот трека</div>
+    </div>
+
+    <div class="correct">
+        <div class="example">2. "#км +10.5 утренняя тренировка"</div>
+        <div class="reason"><strong>Хештег в начале</strong> сообщения, дистанция <strong>с <code>+</code></strong> и десятичной точкой, есть описание</div>
+    </div>
+
+    <div class="correct">
+        <div class="example">3. "Сегодня #км +7,5 вечером"</div>
+        <div class="reason">Запятая в числе (автоматически преобразуется в точку), <strong>есть <code>#км</code> и <code>+</code></strong> перед числом</div>
+    </div>
+
+    <div class="correct">
+        <div class="example">4. "#км +3+4+2 интервальный бег"</div>
+        <div class="reason">Суммирование нескольких дистанций (3+4+2=9 км), <strong>корректные <code>#км</code> и <code>+</code></strong>, описание типа тренировки</div>
+    </div>
+
+    <div class="correct">
+        <div class="example">5. "#км +21.1 полумарафон!"</div>
+        <div class="reason">Длинная дистанция с десятичной частью, <strong>правильные <code>#км</code> и <code>+</code></strong>, восклицательный знак в описании</div>
+    </div>
+
+    <h2>❌ Примеры неправильного оформления</h2>
+
+    <div class="incorrect">
+        <div class="example">1. "Тренировка 5 км сегодня"</div>
+        <div class="reason"><strong>Отсутствует <code>#км</code></strong>, нет символа <code>+</code> перед числом <span class="emoji">❌</span></div>
+    </div>
+
+    <div class="incorrect">
+        <div class="example">2. "#км тренировка 5 километров"</div>
+        <div class="reason">Нет <strong>числового значения с <code>+</code></strong> <span class="emoji">❌</span></div>
+    </div>
+
+    <div class="incorrect">
+        <div class="example">3. "+5 км сегодня"</div>
+        <div class="reason"><strong>Отсутствует <code>#км</code></strong> (хотя число с <code>+</code> есть) <span class="emoji">❌</span></div>
+    </div>
+
+    <div class="incorrect">
+        <div class="example">4. "#км пять километров"</div>
+        <div class="reason">Дистанция указана текстом, а не числом <strong>с <code>+</code></strong> <span class="emoji">❌</span></div>
+    </div>
+
+    <div class="incorrect">
+        <div class="example">5. "#км +5" (без фото)</div>
+        <div class="reason">Нет приложенного скриншота трека <span class="emoji">❌</span></div>
+    </div>
+
+    <h2>📝 Как добавить тренировку</h2>
+    <ol>
+        <li>Отправьте сообщение в чат с ботом или в группу, где он находится</li>
+        <li>Сообщение <strong>должно содержать</strong>:
+            <ul>
+                <li><strong>Хештег <code>#км</code></strong> (обязательно)</li>
+                <li><strong>Дистанцию в формате <code>+число</code></strong> (например <code>+5</code> или <code>+10.5</code>) (обязательно)</li>
+                <li><strong>Скриншот трека</strong> из приложения для бега (обязательно)</li>
+            </ul>
+        </li>
+        <li>Опционально можно добавить описание тренировки</li>
+    </ol>
+
+    <h2>✏️ Как редактировать тренировку</h2>
+    <ol>
+        <li>Найдите свое сообщение с тренировкой</li>
+        <li>Нажмите "Редактировать"</li>
+        <li>Измените текст (<strong>обязательно сохраните формат</strong> с <code>#км</code> и <code>+число</code>)</li>
+        <li>Отправьте изменения</li>
+    </ol>
+
+    <h2>🗑️ Как удалить тренировку</h2>
+    <p>Отправьте команду в формате:</p>
+    <pre><code>/rm_12345</code></pre>
+    <p>где <code>12345</code> - ID сообщения с тренировкой (указан в ответе бота при добавлении)</p>
+
+    <h2>📈 Где посмотреть статистику</h2>
+    <p>Бот автоматически отправляет ссылку на статистику после добавления тренировки:</p>
+    <a href="http://45.143.95.82:90/" class="stats-link" target="_blank">Посмотреть статистику тренировок</a>
+
+    <script>
+        // Добавляем небольшую задержку для последовательной анимации элементов
+        document.addEventListener('DOMContentLoaded', function() {
+            const items = document.querySelectorAll('li, .correct, .incorrect');
+            items.forEach((item, index) => {
+                item.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+    </script>
+</body>
+</html>

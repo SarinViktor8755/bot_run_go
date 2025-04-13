@@ -1,0 +1,33 @@
+<script>
+  // Координаты места (например, Москва)
+  const lat = 54.58;
+  const lng = 73.20;
+  
+  // Получаем сегодняшнюю дату в формате YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Запрашиваем время заката с API
+  fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lng}&date=${today}&formatted=0`)
+    .then(response => response.json())
+    .then(data => {
+      const sunsetTime = new Date(data.results.sunset);
+      const now = new Date();
+      
+      // Если сейчас после заката — перенаправляем на ночной сайт
+      if (now >= sunsetTime) {
+        window.location.href = "http://45.143.95.82:90/dark_theme";
+      } else {
+        window.location.href = "http://45.143.95.82:90/light_theme";
+      }
+    })
+    .catch(error => {
+      console.error("Ошибка при получении времени заката:", error);
+      // Если API не сработало, можно использовать запасной вариант
+      const hours = new Date().getHours();
+      if (hours >= 18 || hours < 6) {
+        window.location.href = "http://45.143.95.82:90/dark_theme";
+      } else {
+        window.location.href = "http://45.143.95.82:90/light_theme";
+      }
+    });
+</script>

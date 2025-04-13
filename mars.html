@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бегуны к Марсу</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            color: white;
+        }
+        
+        #container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        #progress-container {
+            position: absolute;
+            bottom: 50px;
+            width: 80%;
+            left: 10%;
+            height: 30px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 15px;
+            z-index: 100;
+        }
+        
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #37c950, #4895ef);
+            border-radius: 15px;
+            transition: width 1s ease-out;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 60px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            font-size: 1.5em;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin: 0;
+            background: linear-gradient(90deg, #37c950, #4895ef);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(55,201,80,0.3);
+        }
+        
+        .runner-icon {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2337c950"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>') no-repeat center;
+            background-size: contain;
+            z-index: 10;
+            animation: pulse 1.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            100% { transform: scale(1.3); opacity: 1; }
+        }
+        
+        #distance-info {
+            position: absolute;
+            bottom: 100px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            font-size: 1.2em;
+        }
+        
+        #earth-label, #mars-label {
+            position: absolute;
+            color: white;
+            font-size: 1.2em;
+            text-shadow: 0 0 5px black;
+            z-index: 100;
+        }
+        
+        #earth-label {
+            bottom: 20px;
+            left: 20px;
+        }
+        
+        #mars-label {
+            bottom: 20px;
+            right: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="info">
+        <h1>БЕГУНЫ К МАРСУ</h1>
+    </div>
+    <div id="stats">
+        Общий пробег: <span id="total-distance">0</span> км
+    </div>
+    <div id="distance-info">
+        Пройдено: <span id="progress-percent">0</span>% пути до Марса (~<span id="remaining-distance">225,000,000</span> км осталось)
+    </div>
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
+    <div id="earth-label">ЗЕМЛЯ</div>
+    <div id="mars-label">МАРС</div>
+
+    <script>
+        // Константы
+        const EARTH_MARS_DISTANCE = 225000000; // Среднее расстояние в км
+        const EARTH_RADIUS = 5;
+        const MARS_RADIUS = 3;
+        const SCALE_FACTOR = 1 / 5000000; // Масштаб для визуализации
+        
+        // Переменные
+        let scene, camera, renderer, controls;
+        let earth, mars, path;
+        let totalDistance = 0;
+        let runners = [];
+        
+        // Инициализация Three.js
+        function init() {
+            // Сцена
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            
+            // Камера
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 20, 50);
+            
+            // Рендерер
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Контролы для вращения сцены
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Свет
+            const light = new THREE.AmbientLight(0x404040);
+            scene.add(light);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Создаем Землю
+            const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 32, 32);
+            const earthMaterial = new THREE.MeshPhongMaterial({
+                map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+                bumpMap: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg'),
+                bumpScale: 0.05,
+                specularMap: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
+                specular: new THREE.Color('grey')
+            });
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.position.x = -40;
+            scene.add(earth);
+            
+            // Создаем Марс
+            const marsGeometry = new THREE.SphereGeometry(MARS_RADIUS, 32, 32);
+            const marsMaterial = new THREE.MeshPhongMaterial({
+                map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/mars_1k_color.jpg'),
+                bumpMap: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/mars_1k_topo.jpg'),
+                bumpScale: 0.05
+            });
+            mars = new THREE.Mesh(marsGeometry, marsMaterial);
+            mars.position.x = 40;
+            scene.add(mars);
+            
+            // Создаем путь между планетами
+            const pathGeometry = new THREE.BufferGeometry();
+            const pathMaterial = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 });
+            path = new THREE.Line(pathGeometry, pathMaterial);
+            scene.add(path);
+            
+            updatePath();
+            
+            // Звезды
+            const starsGeometry = new THREE.BufferGeometry();
+            const starPositions = [];
+            for (let i = 0; i < 5000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                starPositions.push(x, y, z);
+            }
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+            const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(stars);
+            
+            // Загрузка данных
+            fetchData();
+            
+            // Обработка изменения размера окна
+            window.addEventListener('resize', onWindowResize);
+            
+            // Запуск анимации
+            animate();
+        }
+        
+        // Обновление пути между планетами
+        function updatePath() {
+            const points = [];
+            const segments = 100;
+            
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const x = THREE.MathUtils.lerp(earth.position.x, mars.position.x, t);
+                const y = 0;
+                const z = 0;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            
+            path.geometry.setFromPoints(points);
+        }
+        
+        // Обновление позиций бегунов
+        function updateRunners() {
+            const progress = Math.min(1, totalDistance / EARTH_MARS_DISTANCE);
+            document.getElementById('progress-bar').style.width = `${progress * 100}%`;
+            document.getElementById('progress-percent').textContent = (progress * 100).toFixed(6);
+            document.getElementById('remaining-distance').textContent = Math.max(0, Math.floor(EARTH_MARS_DISTANCE - totalDistance)).toLocaleString();
+            
+            // Удаляем старых бегунов
+            runners.forEach(runner => {
+                document.body.removeChild(runner);
+            });
+            runners = [];
+            
+            // Создаем новых бегунов
+            const runnerCount = Math.min(50, Math.max(5, Math.floor(progress * 20)));
+            
+            for (let i = 0; i < runnerCount; i++) {
+                const runnerPos = progress * 0.9 + (Math.random() * 0.1);
+                const runner = document.createElement('div');
+                runner.className = 'runner-icon';
+                
+                // Позиционируем бегуна в 3D пространстве
+                const x = THREE.MathUtils.lerp(earth.position.x, mars.position.x, runnerPos);
+                const y = Math.sin(runnerPos * Math.PI * 4) * 3;
+                const z = Math.cos(runnerPos * Math.PI * 4) * 3;
+                
+                const vector = new THREE.Vector3(x, y, z);
+                vector.project(camera);
+                
+                const xPos = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const yPos = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+                
+                runner.style.left = `${xPos}px`;
+                runner.style.top = `${yPos}px`;
+                
+                // Анимация для каждого бегуна
+                runner.style.animationDelay = `${i * 0.1}s`;
+                
+                document.body.appendChild(runner);
+                runners.push(runner);
+            }
+        }
+        
+        // Загрузка данных о пробегах
+        async function fetchData() {
+            try {
+                const response = await fetch('http://45.143.95.82:9090/api/messages');
+                if (!response.ok) throw new Error('Ошибка загрузки данных');
+                
+                const data = await response.json();
+                totalDistance = data.messages.reduce((sum, msg) => sum + msg.distance, 0);
+                
+                document.getElementById('total-distance').textContent = totalDistance.toLocaleString();
+                updateRunners();
+                
+                // Обновление каждые 5 секунд
+                setTimeout(fetchData, 5000);
+            } catch (err) {
+                console.error('Ошибка:', err);
+                setTimeout(fetchData, 10000);
+            }
+        }
+        
+        // Обработка изменения размера окна
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Анимация
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Вращение планет
+            earth.rotation.y += 0.005;
+            mars.rotation.y += 0.003;
+            
+            // Обновление позиций бегунов
+            if (runners.length > 0) {
+                updateRunners();
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Запуск приложения
+        init();
+    </script>
+</body>
+</html>

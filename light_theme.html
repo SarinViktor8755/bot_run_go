@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика бегунов</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @font-face {
+            font-family: 'Ustroke';
+            src: url('Ustroke.ttf') format('truetype'),
+                 local('Arial Black'), 
+                 local('Impact');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --text-muted: #6c757d;
+            --border-color: #e0e0e0;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --danger: #f44336;
+            --info: #2196f3;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+        
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .navbar-brand {
+            font-family: 'Ustroke', sans-serif;
+            color: var(--primary) !important;
+            font-size: 1.5rem;
+        }
+        
+        .nav-link {
+            color: var(--text-color) !important;
+            transition: all 0.3s;
+        }
+        
+        .nav-link:hover {
+            color: var(--primary) !important;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+            color: var(--text-color);
+            padding: 5rem 0;
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header h1 {
+            font-family: 'Ustroke', sans-serif;
+            font-size: 4rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .runner-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+        
+        .runner-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .runner-avatar {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+        
+        .runner-avatar:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(67, 97, 238, 0.3);
+        }
+        
+        .chart-container {
+            height: 350px;
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Стили для счетчиков */
+        .counters-section {
+            background: linear-gradient(135deg, rgba(245, 247, 250, 0.9), rgba(195, 207, 226, 0.9));
+            padding: 3rem 0;
+            margin: 3rem 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .counter-container {
+            text-align: center;
+            padding: 1.5rem;
+            position: relative;
+        }
+        
+        .counter-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 3px;
+            background: var(--primary);
+        }
+        
+        .counter-value {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-family: 'Ustroke', sans-serif;
+        }
+        
+        .counter-label {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Анимация счетчиков */
+        @keyframes counterScale {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .counter-animate {
+            animation: counterScale 0.5s ease-out forwards;
+        }
+        
+        /* Секции */
+        .section-title {
+            font-family: 'Ustroke', sans-serif;
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            position: relative;
+            display: inline-block;
+            padding-bottom: 10px;
+        }
+        
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), transparent);
+        }
+        
+        /* Таблицы */
+        .table {
+            color: var(--text-color);
+            background: var(--card-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .table th {
+            background: rgba(67, 97, 238, 0.1);
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .table td, .table th {
+            padding: 15px;
+            border: none;
+        }
+        
+        .table tbody tr {
+            transition: all 0.3s;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(67, 97, 238, 0.05);
+        }
+        
+        /* Модальные окна */
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--primary);
+            color: var(--text-color);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-title {
+            color: var(--primary);
+        }
+        
+        .btn-close {
+            filter: none;
+        }
+        
+        /* Кнопки */
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .counter-value {
+                font-size: 2.5rem;
+            }
+            
+            .section-title {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* Элементы прогресса */
+        .progress {
+            background-color: #e9ecef;
+        }
+        
+        .progress-bar {
+            background-color: var(--primary);
+        }
+        
+        /* Подвал */
+        footer {
+            background: white;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+        }
+        
+/* Стили для фотографий пробежек */
+.run-photos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.run-photo {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.run-photo:hover {
+    transform: scale(1.02);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border-color: var(--primary);
+}
+
+/* Адаптивность фотографий */
+@media (max-width: 768px) {
+    .run-photos {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+    .run-photo {
+        height: 120px;
+    }
+}
+
+/* Стили для модального окна с увеличенной фотографией */
+#photoModal .modal-content {
+    background: transparent;
+    box-shadow: none;
+}
+
+#photoModal .btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+}
+
+#photoModal .btn-close:hover {
+    opacity: 1;
+}
+
+/* Стили для модального окна с увеличенной фотографией */
+#photoModal .modal-content {
+    background: transparent;
+    box-shadow: none;
+}
+
+#photoModal .btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+}
+
+#photoModal .btn-close:hover {
+    opacity: 1;
+}
+
+
+}
+/* Космические частицы */
+.particles-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    animation: particleFly linear infinite;
+    opacity: 0;
+}
+
+@keyframes particleFly {
+    0% {
+        transform: translate3d(0, 0, 0) scale(0.5);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.8;
+    }
+    50% {
+        transform: translate3d(var(--tx), var(--ty), 0) scale(1.2);
+        opacity: 1;
+    }
+    90% {
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate3d(calc(var(--tx) * 2), calc(var(--ty) * 2), 0) scale(0.5);
+        opacity: 0;
+    }
+}
+    </style>
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-running me-2"></i>RunStats
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#runners"><i class="fas fa-users me-1"></i> Участники</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#runs"><i class="fas fa-route me-1"></i> Пробежки</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#stats"><i class="fas fa-chart-line me-1"></i> Статистика</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+<!-- Частицы -->
+<div class="particles-container" id="particlesContainer"></div>
+    <!-- Шапка -->
+    <header class="header">
+        <div class="container">
+            <h1 class="display-3 fw-bold mb-3 animate__animated animate__fadeInDown">Статистика бегунов</h1>
+            <p class="lead animate__animated animate__fadeInDown animate__delay-1s">
+                Следите за прогрессом участников в реальном времени
+            </p>
+        </div>
+    </header>
+
+    <!-- Основное содержимое -->
+    <div class="container mb-5">
+        <!-- Секция с счетчиками -->
+        <section class="counters-section animate__animated animate__fadeIn" id="stats">
+            <div class="container">
+                <h2 class="text-center mb-5 section-title">Общая статистика</h2>
+                <div class="row">
+                    <div class="col-md-4 counter-container">
+                        <div class="counter-value" id="total-distance-counter">0</div>
+                        <div class="counter-label">Километров пробежали</div>
+                    </div>
+                    <div class="col-md-4 counter-container">
+                        <div class="counter-value" id="total-users-counter">0</div>
+                        <div class="counter-label">Участников в группе</div>
+                    </div>
+                    <div class="col-md-4 counter-container">
+                        <div class="counter-value" id="total-runs-counter">0</div>
+                        <div class="counter-label">Всего пробежек</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Таблица участников -->
+        <section class="mb-5 animate__animated animate__fadeIn" id="runners">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="section-title">Участники</h2>
+                <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary" id="runners-count">0</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th style="width: 80px;">Фото</th>
+                            <th>Имя</th>
+                            <th style="width: 120px;">Км</th>
+                            <th style="width: 200px;">Рейтинг</th>
+                        </tr>
+                    </thead>
+                    <tbody id="runners-table">
+                        <!-- Данные будут заполнены через JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        
+        <!-- Таблица пробежек -->
+        <section class="mb-5 animate__animated animate__fadeIn" id="runs">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="section-title">Последние пробежки</h2>
+                <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary" id="runs-count">0</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th style="width: 80px;">Фото</th>
+                            <th>Участник</th>
+                            <th style="width: 120px;">Дистанция</th>
+                            <th>Описание</th>
+                            <th style="width: 150px;">Дата</th>
+                        </tr>
+                    </thead>
+                    <tbody id="runs-table">
+                        <!-- Данные будут заполнены через JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        
+        <!-- График пробежек -->
+        <section class="mb-5 animate__animated animate__fadeIn">
+            <h2 class="section-title mb-4">График активности</h2>
+            <div class="chart-container">
+                <canvas id="runs-chart"></canvas>
+            </div>
+        </section>
+    </div>
+
+    <!-- Подвал -->
+    <footer class="py-4 text-center">
+        <div class="container">
+            <p class="mb-0">© 2025 RunStats. Все права защищены.</p>
+            <p class="text-muted mt-2">
+                <small>Создано с <i class="fas fa-heart text-danger"></i> для любителей бега</small>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Модальное окно с информацией о бегуне -->
+    <div class="modal fade" id="runnerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="runnerModalTitle">Информация о бегуне</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img id="runnerModalAvatar" src="" class="runner-avatar-large rounded-circle border border-3 border-primary shadow" 
+                             style="width: 120px; height: 120px; object-fit: cover;" alt="Аватар бегуна">
+                        <h4 id="runnerModalName" class="mt-3 mb-0"></h4>
+                        <p class="text-muted" id="runnerModalUsername"></p>
+                    </div>
+                    
+                    <div class="row text-center mb-4">
+                        <div class="col-md-4">
+                            <div class="stat-value text-primary" id="total-distance">0</div>
+                            <div class="stat-label">Километров</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-value text-primary" id="total-runs">0</div>
+                            <div class="stat-label">Пробежек</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-value text-primary" id="runner-rating">0</div>
+                            <div class="stat-label">Рейтинг</div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3"><i class="fas fa-route me-2"></i>Последние пробежки</h5>
+                    <div class="runner-runs" id="runnerRunsList" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Список пробежек будет заполнен динамически -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно с информацией о пробежке -->
+    <div class="modal fade " id="runModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="runModalTitle">Информация о пробежке</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center mb-4">
+                        <img id="runModalUserAvatar" src="" class="runner-avatar me-3" alt="Аватар бегуна">
+                        <div>
+                            <h5 id="runModalUserName" class="mb-0"></h5>
+                            <p class="text-muted mb-0" id="runModalUserUsername"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3 ">
+					<div class="col-md-6 ">
+                        <div class="col-md-6">
+                            <div class="mb-6">
+                                <span class="fw-bold">Дистанция:</span>
+                                <span id="runModalDistance" class="ms-2"></span>
+                            </div>
+                            <div class="mb-6">
+                                <span class="fw-bold">Дата:</span>
+                                <span id="runModalDate" class="ms-2"></span>
+                            </div>
+                        </div>
+  
+                    </div>
+                    
+                    <div class="run-description">
+                        <h6><i class="fas fa-align-left me-2"></i>Описание пробежки:</h6>
+                        <p id="runModalDescription" class="mb-0"></p>
+                    </div>
+                    
+<div id="runModalPhotosContainer" class="mt-4">
+    <h6><i class="fas fa-camera me-2"></i>Фотографии с пробежки:</h6>
+    <div class="run-photos" id="runModalPhotos">
+        <!-- Фотографии будут добавлены динамически -->
+    </div>
+</div>
+
+</div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+	
+	
+	
+	<!-- Модальное окно для увеличенного просмотра фото -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-transparent border-0">
+            <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-body p-0 text-center">
+                <img id="enlargedPhoto" src="" class="img-fluid" style="max-height: 80vh;" alt="Увеличенное фото пробежки">
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Данные
+        let users = [];
+        let messages = [];
+        let runModal = null;
+        let runnerModal = null;
+        let runsChart = null;
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+            setupChart();
+            runModal = new bootstrap.Modal(document.getElementById('runModal'));
+            runnerModal = new bootstrap.Modal(document.getElementById('runnerModal'));
+            createParticles();
+            // Анимация счетчиков при скролле
+            window.addEventListener('scroll', checkCountersVisibility);
+        });
+		
+		window.addEventListener('resize', () => {
+    const container = document.getElementById('particlesContainer');
+    container.innerHTML = '';
+    createParticles();
+});
+
+        // Загрузка данных
+        async function fetchData() {
+            try {
+                // Загружаем данные пользователей
+                const usersResponse = await fetch('http://45.143.95.82:9090/api/users');
+                if (!usersResponse.ok) throw new Error('Ошибка при загрузке пользователей');
+                users = (await usersResponse.json()).users || [];
+                
+                // Загружаем данные пробежек
+                const messagesResponse = await fetch('http://45.143.95.82:9090/api/messages');
+                if (!messagesResponse.ok) throw new Error('Ошибка при загрузке пробежек');
+                messages = (await messagesResponse.json()).messages || [];
+                
+                // Отображаем данные
+                renderRunnersTable();
+                renderRunsTable();
+                updateRunsChart();
+                updateCounters();
+                
+                // Настраиваем периодическое обновление
+                setupDataRefresh();
+            } catch (err) {
+                console.error('Ошибка при получении данных:', err);
+                users = [];
+                messages = [];
+                setupChart();
+            }
+        }
+
+        // Настройка графика
+        function setupChart() {
+            const ctx = document.getElementById('runs-chart').getContext('2d');
+            
+            if (window.runsChart) {
+                window.runsChart.destroy();
+            }
+            
+            window.runsChart = new Chart(ctx, {
+                type: 'line',
+                data: { 
+                    labels: [], 
+                    datasets: [{
+                        label: 'Дистанция (км)',
+                        data: [],
+                        borderColor: '#4361ee',
+                        backgroundColor: 'rgba(67, 97, 238, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#3a0ca3',
+                        pointBorderColor: '#fff',
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }] 
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            title: { display: true, text: 'Километры', color: '#4361ee' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { color: '#6c757d' }
+                        },
+                        x: { 
+                            title: { display: true, text: 'Дата', color: '#4361ee' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { color: '#6c757d' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#333333' }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            titleColor: '#4361ee',
+                            bodyColor: '#333333',
+                            borderColor: '#4361ee',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // Обновление графика
+        function updateRunsChart() {
+            if (!messages || messages.length === 0) return;
+            
+            const runsByDate = {};
+            messages.forEach(msg => {
+                if (msg && msg.messageDate) {
+                    const date = new Date(msg.messageDate).toLocaleDateString();
+                    runsByDate[date] = (runsByDate[date] || 0) + parseFloat(msg.distance || 0);
+                }
+            });
+            
+            const dates = Object.keys(runsByDate).sort();
+            const distances = dates.map(date => runsByDate[date]);
+            
+            if (window.runsChart) {
+                window.runsChart.data.labels = dates;
+                window.runsChart.data.datasets[0].data = distances;
+                window.runsChart.update();
+            }
+        }
+
+        // Таблица участников
+        function renderRunnersTable() {
+            const tableBody = document.getElementById('runners-table');
+            tableBody.innerHTML = '';
+            
+            // Сортировка по рейтингу (по убыванию)
+            const sortedUsers = [...users].sort((a, b) => calculateRating(b) - calculateRating(a));
+            
+            sortedUsers.forEach((user, index) => {
+                const row = document.createElement('tr');
+                row.className = 'runner-card animate__animated animate__fadeIn';
+                row.style.animationDelay = `${index * 0.1}s`;
+                
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>
+                        <img src="${getAvatar(user)}" onerror="this.src='./net.png'" 
+                             class="runner-avatar" alt="${user.userFirstName}">
+                    </td>
+                    <td>
+                        <strong>${user.userFirstName} ${user.userLastName || ''}</strong>
+                        <div class="text-muted small">${user.username || ''}</div>
+                    </td>
+                    <td class="fw-bold">${calculateTotalDistance(user).toFixed(1)} км</td>
+                    <td>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar" 
+                                 style="width: ${calculateRating(user) / 100 * 100}%"></div>
+                        </div>
+                        <small class="text-muted">${calculateRating(user).toFixed(1)}</small>
+                    </td>
+                `;
+                
+                // Обработчик клика для показа информации о бегуне
+                row.addEventListener('click', () => showRunnerInfo(user));
+                
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('runners-count').textContent = sortedUsers.length;
+        }
+        
+        // Таблица пробежек
+        function renderRunsTable() {
+            const tableBody = document.getElementById('runs-table');
+            tableBody.innerHTML = '';
+            
+            // Сортировка пробежек по дате (новые сверху)
+            const sortedMessages = [...messages].sort((a, b) => 
+                new Date(b.messageDate) - new Date(a.messageDate));
+            
+            sortedMessages.slice(0, 15).forEach((message, index) => {
+                const user = users.find(u => u.userID === message.userID);
+                const row = document.createElement('tr');
+                row.className = 'runner-card animate__animated animate__fadeIn';
+                row.style.animationDelay = `${index * 0.1}s`;
+                
+                const runDate = new Date(message.messageDate).toLocaleDateString();
+                
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>
+                        <img src="${getAvatar(user)}" onerror="this.src='./net.png'" 
+                             class="runner-avatar" alt="${user?.userFirstName || 'Неизвестный'}">
+                    </td>
+                    <td>
+                        <strong>${user?.userFirstName || 'Неизвестный'} ${user?.userLastName || ''}</strong>
+                        <div class="text-muted small">${user?.username || ''}</div>
+                    </td>
+                    <td class="fw-bold">${message.distance.toFixed(1)} км</td>
+                    <td>${message.text || 'Без описания'}</td>
+                    <td class="text-muted small">${runDate}</td>
+                `;
+                
+                // Обработчик клика для показа информации о пробежке
+                row.addEventListener('click', () => showRunInfo(message, user));
+                
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('runs-count').textContent = sortedMessages.length;
+        }
+        
+        // Показать информацию о бегуне
+        function showRunnerInfo(user) {
+            document.getElementById('runnerModalTitle').textContent = `Информация о бегуне`;
+            document.getElementById('runnerModalName').textContent = `${user.userFirstName} ${user.userLastName || ''}`;
+            document.getElementById('runnerModalUsername').textContent = `@${user.username || 'нет_никнейма'}`;
+            
+            const avatar = document.getElementById('runnerModalAvatar');
+            avatar.src = getAvatar(user);
+            avatar.onerror = () => { avatar.src='./net.png'; };
+            
+            // Рассчитываем статистику
+            const userRuns = messages.filter(msg => msg.userID === user.userID);
+            const totalDistance = calculateTotalDistance(user);
+            const totalRuns = userRuns.length;
+            const rating = calculateRating(user);
+            
+            // Заполняем статистику
+            document.getElementById('total-distance').textContent = totalDistance.toFixed(1);
+            document.getElementById('total-runs').textContent = totalRuns;
+            document.getElementById('runner-rating').textContent = rating.toFixed(1);
+            
+            // Заполняем список пробежек
+            const runsList = document.getElementById('runnerRunsList');
+            runsList.innerHTML = '';
+            
+            // Сортируем пробежки по дате (новые сверху)
+            const sortedRuns = [...userRuns].sort((a, b) => 
+                new Date(b.messageDate) - new Date(a.messageDate));
+            
+            sortedRuns.slice(0, 10).forEach(run => {
+                const runItem = document.createElement('div');
+                runItem.className = 'run-item p-3 mb-3 rounded';
+                runItem.style.background = 'rgba(67, 97, 238, 0.05)';
+                runItem.style.borderLeft = '3px solid var(--primary)';
+                
+                const runDate = new Date(run.messageDate).toLocaleString();
+                const runText = run.text || 'Без описания';
+                
+                runItem.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <div class="run-distance fw-bold">${run.distance.toFixed(1)} км</div>
+                        <div class="run-date text-muted small">${runDate}</div>
+                    </div>
+                    <div class="run-text mt-2">${runText}</div>
+                `;
+                
+                runsList.appendChild(runItem);
+            });
+            
+            // Показываем модальное окно
+            runnerModal.show();
+        }
+        
+// Показать информацию о пробежке
+// Инициализация модального окна для фото
+const photoModal = new bootstrap.Modal(document.getElementById('photoModal'));
+
+// Показать информацию о пробежке (обновленная функция)
+function showRunInfo(run, user) {
+    document.getElementById('runModalTitle').textContent = `Пробежка от ${new Date(run.messageDate).toLocaleDateString()}`;
+    
+    // Заполняем информацию о бегуне
+    const userAvatar = document.getElementById('runModalUserAvatar');
+    userAvatar.src = getAvatar(user);
+    userAvatar.onerror = () => { userAvatar.src='./net.png'; };
+    
+    document.getElementById('runModalUserName').textContent = 
+        `${user?.userFirstName || 'Неизвестный'} ${user?.userLastName || ''}`;
+    document.getElementById('runModalUserUsername').textContent = 
+        user?.username ? `@${user.username}` : '';
+    
+    // Заполняем данные пробежки
+    document.getElementById('runModalDistance').textContent = `${run.distance.toFixed(1)} км`;
+    document.getElementById('runModalDate').textContent = new Date(run.messageDate).toLocaleDateString();
+
+    document.getElementById('runModalDescription').textContent = run.text || 'Без описания';
+    
+    // Заполняем фотографии пробежки
+    const photosContainer = document.getElementById('runModalPhotos');
+    photosContainer.innerHTML = '';
+    
+    if (run.photoPaths && run.photoPaths.length > 0) {
+        run.photoPaths.forEach(photoPath => {
+            // Удаляем префикс "photos/" если он есть
+            const cleanPhotoPath = photoPath.startsWith('photos/') 
+                ? photoPath.substring('photos/'.length) 
+                : photoPath;
+            
+            const photoWrapper = document.createElement('div');
+            photoWrapper.className = 'photo-wrapper';
+            
+            const photo = document.createElement('img');
+            photo.src = `http://45.143.95.82:90/photos/${cleanPhotoPath}`;
+            photo.className = 'run-photo';
+            photo.alt = 'Фото пробежки';
+            photo.onerror = () => {
+                photo.src = './net.png';
+                photo.style.objectFit = 'contain';
+            };
+            
+            // Добавляем обработчик клика для увеличения фото
+            photo.addEventListener('click', () => {
+                document.getElementById('enlargedPhoto').src = photo.src;
+                photoModal.show();
+            });
+            
+            photosContainer.appendChild(photo);
+        });
+        document.getElementById('runModalPhotosContainer').style.display = 'block';
+    } else {
+        document.getElementById('runModalPhotosContainer').style.display = 'none';
+    }
+    
+    // Показываем модальное окно
+    runModal.show();
+	
+	
+}
+        // Обновление счетчиков
+        function updateCounters() {
+            const totalDistance = users.reduce((sum, user) => sum + calculateTotalDistance(user), 0);
+            const totalUsers = users.length;
+            const totalRuns = messages.length;
+            
+            animateCounter('total-distance-counter', totalDistance, 2000);
+            animateCounter('total-users-counter', totalUsers, 1500);
+            animateCounter('total-runs-counter', totalRuns, 1500);
+        }
+        
+        // Анимация счетчиков
+        function animateCounter(elementId, targetValue, duration) {
+            const element = document.getElementById(elementId);
+            const startValue = 0;
+            const increment = targetValue / (duration / 16);
+            let currentValue = startValue;
+            
+            const counter = setInterval(() => {
+                currentValue += increment;
+                if (currentValue >= targetValue) {
+                    clearInterval(counter);
+                    currentValue = targetValue;
+                    element.classList.add('counter-animate');
+                }
+                element.textContent = Math.floor(currentValue);
+            }, 16);
+        }
+        
+        // Проверка видимости счетчиков
+        function checkCountersVisibility() {
+            const countersSection = document.querySelector('.counters-section');
+            if (isElementInViewport(countersSection)) {
+                updateCounters();
+                window.removeEventListener('scroll', checkCountersVisibility);
+            }
+        }
+        
+        // Проверка, находится ли элемент в области видимости
+        function isElementInViewport(el) {
+            const rect = el.getBoundingClientRect();
+            return (
+                rect.top >= 0 &&
+                rect.left >= 0 &&
+                rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+                rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+            );
+        }
+        
+        // Настройка периодического обновления данных
+        function setupDataRefresh() {
+            if (window.dataRefreshInterval) {
+                clearInterval(window.dataRefreshInterval);
+            }
+            
+            window.dataRefreshInterval = setInterval(async () => {
+                try {
+                    const newMessagesResponse = await fetch('http://45.143.95.82:9090/api/messages');
+                    if (!newMessagesResponse.ok) return;
+                    
+                    const newMessages = (await newMessagesResponse.json()).messages || [];
+                    if (JSON.stringify(newMessages) !== JSON.stringify(messages)) {
+                        messages = newMessages;
+                        renderRunnersTable();
+                        renderRunsTable();
+                        updateRunsChart();
+                        updateCounters();
+                    }
+                } catch (e) {
+                    console.error('Ошибка при обновлении данных:', e);
+                }
+            }, 3000); // Обновление каждые 10 секунд
+        }
+        
+        // Вспомогательные функции
+        function getAvatar(user) {
+            return user?.userID 
+                ? `http://45.143.95.82:90/photos/avatar_${user.userID}.jpg` 
+                : 'net.png';
+        }
+        
+        function calculateTotalDistance(user) {
+            return messages
+                .filter(msg => msg.userID === user.userID)
+                .reduce((sum, msg) => sum + (parseFloat(msg.distance) || 0), 0);
+        }
+        
+        function calculateRating(user) {
+            const daysRegistered = Math.floor(
+                (new Date() - new Date(user.registrationDate)) / (1000 * 60 * 60 * 24)
+            );
+            return Math.max(0, calculateTotalDistance(user) - daysRegistered * 2);
+        }
+		
+		
+		// Создание частиц
+function createParticles() {
+    const container = document.getElementById('particlesContainer');
+    const particleCount = 100;
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+        
+        const startX = Math.random() * window.innerWidth;
+        const startY = Math.random() * window.innerHeight;
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 50 + Math.random() * 200;
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+        const size = 1 + Math.random() * 3;
+        const delay = Math.random() * 5;
+        const duration = 2 + Math.random() * 3;
+        
+        particle.style.left = `${startX}px`;
+        particle.style.top = `${startY}px`;
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.setProperty('--tx', `${tx}px`);
+        particle.style.setProperty('--ty', `${ty}px`);
+        particle.style.animationDuration = `${duration}s`;
+        particle.style.animationDelay = `${delay}s`;
+        
+        const isNeon = Math.random() > 0.7;
+        if (isNeon) {
+            const neonColor = Math.random() > 0.5 ? 'rgba(0, 243, 255, 0.8)' : 'rgba(255, 0, 247, 0.8)';
+            particle.style.background = neonColor;
+            particle.style.boxShadow = `0 0 10px 2px ${neonColor}`;
+        } else {
+            const brightness = 150 + Math.random() * 105;
+            particle.style.background = `rgba(${brightness}, ${brightness}, ${brightness}, 0.7)`;
+        }
+        
+        container.appendChild(particle);
+    }
+}
+    </script>
+</body>
+</html>
