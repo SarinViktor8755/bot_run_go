@@ -1,4 +1,5 @@
 {
-  "botToken": "",
-  "adminIDs": [123456789, 987654321]
+  "BotToken": "7217078454:AAGHk886GDWcvW-hasCGWK9pPoaHBfUQHVQ",
+  "AdminIDs": [123456789],
+  "AlbumWaitTime": 5
 }

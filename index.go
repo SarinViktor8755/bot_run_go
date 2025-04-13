@@ -11,214 +11,262 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Конфигурация бота
+// Config структура для конфигурации бота
 type Config struct {
 	BotToken      string  `json:"botToken"`
 	AdminIDs      []int64 `json:"adminIDs"`
+	AlbumWaitTime int     `json:"albumWaitTime"`
 }
 
-// Структуры для парсинга JSON от Telegram API
-type UserProfilePhotos struct {
-	Result struct {
-		TotalCount int `json:"total_count"`
-		Photos     [][]struct {
-			FileID string `json:"file_id"`
-		} `json:"photos"`
-	} `json:"result"`
+// AlbumPhoto содержит информацию о фото в альбоме
+type AlbumPhoto struct {
+	FileID   string `json:"fileID"`
+	FilePath string `json:"filePath"`
 }
 
-type FileResponse struct {
-	Result struct {
-		FilePath string `json:"file_path"`
-	} `json:"result"`
-}
-
-// Пользователи
+// User представляет информацию о пользователе
 type User struct {
 	UserID           int64     `json:"userID"`
 	UserFirstName    string    `json:"userFirstName"`
 	UserLastName     string    `json:"userLastName,omitempty"`
 	Username         string    `json:"username,omitempty"`
-	PhoneNumber      string    `json:"phoneNumber,omitempty"`
 	RegistrationDate time.Time `json:"registrationDate"`
 }
 
+// Message представляет сообщение с тренировкой
+type Message struct {
+	UserID        int64        `json:"userID"`
+	MessageID     int          `json:"messageID"`
+	MediaGroupID  string       `json:"mediaGroupID,omitempty"`
+	Text          string       `json:"text,omitempty"`
+	Photos        []AlbumPhoto `json:"photos,omitempty"`
+	Distance      float64      `json:"distance"`
+	MessageDate   time.Time    `json:"messageDate"`
+	IsAlbum       bool         `json:"isAlbum"`
+	AlbumComplete bool         `json:"albumComplete"`
+}
+
+// UsersData содержит данные о пользователях
 type UsersData struct {
 	Users []User `json:"users"`
 }
 
-// Сообщения
-type Message struct {
-	UserID      int64     `json:"userID"`
-	MessageID   int       `json:"messageID"`
-	MediaGroupID string    `json:"mediaGroupID,omitempty"`
-	Text        string    `json:"text,omitempty"`
-	PhotoID     string    `json:"photoID,omitempty"`
-	PhotoPath   string    `json:"photoPath,omitempty"`
-	Distance    float64   `json:"distance"`
-	MessageDate time.Time `json:"messageDate"`
-}
-
+// MessagesData содержит данные о сообщениях
 type MessagesData struct {
 	Messages []Message `json:"messages"`
 }
 
-// Загрузка конфига
+// AlbumTracker отслеживает альбомы фотографий
+type AlbumTracker struct {
+	sync.Mutex
+	albums map[string]*AlbumData
+}
+
+// AlbumData содержит данные об альбоме
+type AlbumData struct {
+	Messages    []*tgbotapi.Message
+	Timer       *time.Timer
+	Complete    bool
+	LastUpdated time.Time
+}
+
+// NewAlbumTracker создает новый трекер альбомов
+func NewAlbumTracker() *AlbumTracker {
+	return &AlbumTracker{
+		albums: make(map[string]*AlbumData),
+	}
+}
+
+// AddMessage добавляет сообщение в альбом
+func (at *AlbumTracker) AddMessage(msg *tgbotapi.Message, waitTime time.Duration, callback func([]*tgbotapi.Message)) {
+	at.Lock()
+	defer at.Unlock()
+
+	if msg.MediaGroupID == "" {
+		return
+	}
+
+	data, exists := at.albums[msg.MediaGroupID]
+	if !exists {
+		data = &AlbumData{
+			Messages:    []*tgbotapi.Message{msg},
+			Complete:    false,
+			LastUpdated: time.Now(),
+		}
+		data.Timer = time.AfterFunc(waitTime, func() {
+			at.Lock()
+			defer at.Unlock()
+			if !data.Complete {
+				data.Complete = true
+				callback(data.Messages)
+				delete(at.albums, msg.MediaGroupID)
+			}
+		})
+		at.albums[msg.MediaGroupID] = data
+	} else {
+		data.Messages = append(data.Messages, msg)
+		data.LastUpdated = time.Now()
+		data.Timer.Stop()
+		data.Timer = time.AfterFunc(waitTime, func() {
+			at.Lock()
+			defer at.Unlock()
+			if !data.Complete {
+				data.Complete = true
+				callback(data.Messages)
+				delete(at.albums, msg.MediaGroupID)
+			}
+		})
+	}
+}
+
+// loadConfig загружает конфигурацию из файла
 func loadConfig(filename string) (Config, error) {
 	var config Config
 	file, err := os.Open(filename)
 	if err != nil {
-		return Config{}, err
+		return config, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&config)
-	if err != nil {
-		return Config{}, err
+
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		return config, err
 	}
 	return config, nil
 }
 
-// Работа с пользователями
+// loadUsersData загружает данные пользователей
 func loadUsersData(filename string) (UsersData, error) {
 	var usersData UsersData
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return UsersData{Users: []User{}}, nil
 	}
+
 	file, err := os.Open(filename)
 	if err != nil {
-		return UsersData{}, err
+		return usersData, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&usersData)
-	if err != nil {
-		return UsersData{}, err
+
+	if err := json.NewDecoder(file).Decode(&usersData); err != nil {
+		return usersData, err
 	}
 	return usersData, nil
 }
 
-func saveUsersData(filename string, usersData UsersData) error {
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
+// saveUsersData сохраняет данные пользователей
+func saveUsersData(filename string, data UsersData) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
 	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(usersData)
+	return encoder.Encode(data)
 }
 
-// Работа с сообщениями
+// loadMessagesData загружает данные сообщений
 func loadMessagesData(filename string) (MessagesData, error) {
 	var messagesData MessagesData
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return MessagesData{Messages: []Message{}}, nil
 	}
+
 	file, err := os.Open(filename)
 	if err != nil {
-		return MessagesData{}, err
+		return messagesData, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&messagesData)
-	if err != nil {
-		return MessagesData{}, err
+
+	if err := json.NewDecoder(file).Decode(&messagesData); err != nil {
+		return messagesData, err
 	}
 	return messagesData, nil
 }
 
-func saveMessagesData(filename string, messagesData MessagesData) error {
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
+// saveMessagesData сохраняет данные сообщений
+func saveMessagesData(filename string, data MessagesData) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
 	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(messagesData)
+	return encoder.Encode(data)
 }
 
-// Сохранение фото (только самого большого размера)
-func saveLargestPhoto(botToken string, photos []tgbotapi.PhotoSize) (string, string, error) {
-	if len(photos) == 0 {
-		return "", "", fmt.Errorf("нет фото для сохранения")
-	}
-
-	// Находим фото с самым большим разрешением
-	var largestPhoto tgbotapi.PhotoSize
-	for _, photo := range photos {
-		if photo.Width*photo.Height > largestPhoto.Width*largestPhoto.Height {
-			largestPhoto = photo
-		}
-	}
-
-	// Получаем информацию о файле
-	fileInfoURL := fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", botToken, largestPhoto.FileID)
-	resp, err := http.Get(fileInfoURL)
+// savePhoto сохраняет фото на диск
+func savePhoto(botToken, fileID string) (string, error) {
+	resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", botToken, fileID))
 	if err != nil {
-		return "", "", fmt.Errorf("ошибка getFile: %v", err)
+		return "", fmt.Errorf("getFile error: %v", err)
 	}
 	defer resp.Body.Close()
 
-	var fileResponse FileResponse
-	if err := json.NewDecoder(resp.Body).Decode(&fileResponse); err != nil {
-		return "", "", fmt.Errorf("ошибка декодирования JSON: %v", err)
+	var fileResp struct {
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
 	}
 
-	// Скачиваем файл
-	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, fileResponse.Result.FilePath)
-	if _, err := os.Stat("photos"); os.IsNotExist(err) {
-		os.Mkdir("photos", 0755)
+	if err := json.NewDecoder(resp.Body).Decode(&fileResp); err != nil {
+		return "", fmt.Errorf("decode error: %v", err)
+	}
+
+	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, fileResp.Result.FilePath)
+	if err := os.MkdirAll("photos", 0755); err != nil {
+		return "", fmt.Errorf("create dir error: %v", err)
 	}
 
 	resp, err = http.Get(fileURL)
 	if err != nil {
-		return "", "", fmt.Errorf("ошибка загрузки файла: %v", err)
+		return "", fmt.Errorf("download error: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Сохраняем файл
-	filename := fmt.Sprintf("photos/%s_%d.jpg", largestPhoto.FileID, time.Now().Unix())
-	out, err := os.Create(filename)
+	filename := fmt.Sprintf("photos/%s_%d.jpg", fileID, time.Now().Unix())
+	file, err := os.Create(filename)
 	if err != nil {
-		return "", "", fmt.Errorf("ошибка создания файла: %v", err)
+		return "", fmt.Errorf("create file error: %v", err)
 	}
-	defer out.Close()
+	defer file.Close()
 
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return "", "", fmt.Errorf("ошибка записи файла: %v", err)
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return "", fmt.Errorf("save file error: %v", err)
 	}
 
-	return largestPhoto.FileID, filename, nil
+	return filename, nil
 }
 
-// Извлечение дистанции
-func extractDistance(message string) float64 {
-	cleaned := strings.ReplaceAll(message, " ", "")
-	reKm := regexp.MustCompile(`(?i)#км`)
-	if !reKm.MatchString(cleaned) {
+// extractDistance извлекает дистанцию из текста
+func extractDistance(text string) float64 {
+	cleaned := strings.ReplaceAll(text, " ", "")
+	if !regexp.MustCompile(`(?i)#км`).MatchString(cleaned) {
 		return -1
 	}
-	reNumbers := regexp.MustCompile(`\+(\d+[\.,]?\d*)`)
-	matches := reNumbers.FindAllStringSubmatch(cleaned, -1)
+
+	matches := regexp.MustCompile(`\+(\d+[\.,]?\d*)`).FindAllStringSubmatch(cleaned, -1)
 	if len(matches) == 0 {
 		return -1
 	}
+
 	var sum float64
 	for _, match := range matches {
 		if len(match) < 2 {
@@ -234,45 +282,46 @@ func extractDistance(message string) float64 {
 	return sum
 }
 
+// FloatToString преобразует float в строку
 func FloatToString(f float64) string {
 	str := strconv.FormatFloat(f, 'f', 10, 64)
 	str = strings.TrimRight(str, "0")
-	str = strings.TrimRight(str, ".")
-	return str
+	return strings.TrimRight(str, ".")
 }
 
-// Проверка, является ли пользователь администратором
+// isAdmin проверяет, является ли пользователь администратором
 func isAdmin(userID int64, config Config) bool {
-	for _, adminID := range config.AdminIDs {
-		if userID == adminID {
+	for _, id := range config.AdminIDs {
+		if userID == id {
 			return true
 		}
 	}
 	return false
 }
 
-// Настройка CORS
+// setupCORS настраивает заголовки CORS
 func setupCORS(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
-// REST API
-func setupRESTAPI(usersDataFile, messagesDataFile string) {
+// setupRESTAPI настраивает REST API
+func setupRESTAPI(usersFile, messagesFile string) {
 	http.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		setupCORS(&w)
 		if r.Method == "OPTIONS" {
 			return
 		}
 
-		usersData, err := loadUsersData(usersDataFile)
+		data, err := loadUsersData(usersFile)
 		if err != nil {
-			http.Error(w, "Ошибка загрузки пользователей", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(usersData)
+		json.NewEncoder(w).Encode(data)
 	})
 
 	http.HandleFunc("/api/messages", func(w http.ResponseWriter, r *http.Request) {
@@ -281,213 +330,240 @@ func setupRESTAPI(usersDataFile, messagesDataFile string) {
 			return
 		}
 
-		messagesData, err := loadMessagesData(messagesDataFile)
+		data, err := loadMessagesData(messagesFile)
 		if err != nil {
-			http.Error(w, "Ошибка загрузки сообщений", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(messagesData)
+		json.NewEncoder(w).Encode(data)
 	})
 
-	log.Println("REST API запущен на http://localhost:9090")
+	log.Println("REST API running on :9090")
 	log.Fatal(http.ListenAndServe(":9090", nil))
 }
 
-// Сохранение аватара пользователя
-func saveUserAvatar(botToken string, userID int64) (string, error) {
-	resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/bot%s/getUserProfilePhotos?user_id=%d", botToken, userID))
-	if err != nil {
-		return "", fmt.Errorf("ошибка запроса getUserProfilePhotos: %v", err)
-	}
-	defer resp.Body.Close()
+// saveAlbumPhotos сохраняет все фото из альбома
+func saveAlbumPhotos(botToken string, messages []*tgbotapi.Message) ([]AlbumPhoto, error) {
+	var photos []AlbumPhoto
 
-	var photos UserProfilePhotos
-	if err := json.NewDecoder(resp.Body).Decode(&photos); err != nil {
-		return "", fmt.Errorf("ошибка декодирования фото профиля: %v", err)
-	}
-
-	if photos.Result.TotalCount == 0 {
-		return "", nil
-	}
-
-	fileID := photos.Result.Photos[0][0].FileID
-
-	fileInfoURL := fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", botToken, fileID)
-	resp, err = http.Get(fileInfoURL)
-	if err != nil {
-		return "", fmt.Errorf("ошибка запроса getFile: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var fileResponse FileResponse
-	if err := json.NewDecoder(resp.Body).Decode(&fileResponse); err != nil {
-		return "", fmt.Errorf("ошибка декодирования file path: %v", err)
+	for _, msg := range messages {
+		if msg.Photo != nil {
+			for _, photo := range msg.Photo {
+				filePath, err := savePhoto(botToken, photo.FileID)
+				if err != nil {
+					return nil, err
+				}
+				photos = append(photos, AlbumPhoto{
+					FileID:   photo.FileID,
+					FilePath: filePath,
+				})
+			}
+		}
 	}
 
-	fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, fileResponse.Result.FilePath)
-	resp, err = http.Get(fileURL)
-	if err != nil {
-		return "", fmt.Errorf("ошибка загрузки аватара: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if _, err := os.Stat("photos"); os.IsNotExist(err) {
-		os.Mkdir("photos", 0777)
-	}
-
-	filename := fmt.Sprintf("photos/avatar_%d.jpg", userID)
-	out, err := os.Create(filename)
-	if err != nil {
-		return "", fmt.Errorf("ошибка создания файла аватара: %v", err)
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("ошибка сохранения аватара: %v", err)
-	}
-
-	return filename, nil
+	return photos, nil
 }
 
-// Обработка редактирования сообщения
-func handleEditedMessage(bot *tgbotapi.BotAPI, config Config, usersDataFile, messagesDataFile string, editedMessage *tgbotapi.Message) {
-	newText := editedMessage.Text
-	if newText == "" {
-		newText = editedMessage.Caption
-	}
-
-	distance := extractDistance(newText)
-	if distance <= 0 {
-		log.Printf("Сообщение #%d не содержит дистанции", editedMessage.MessageID)
+// handleAlbum обрабатывает завершение альбома
+func handleAlbum(bot *tgbotapi.BotAPI, messagesFile string, messages []*tgbotapi.Message) {
+	if len(messages) == 0 {
 		return
 	}
 
-	var photoID, photoPath string
-	var err error
-	if editedMessage.Photo != nil && len(editedMessage.Photo) > 0 {
-		photoID, photoPath, err = saveLargestPhoto(bot.Token, editedMessage.Photo)
-		if err != nil {
-			log.Printf("Ошибка сохранения фото: %v", err)
-		}
+	mainMsg := messages[0]
+	text := mainMsg.Text
+	if text == "" {
+		text = mainMsg.Caption
 	}
 
-	messagesData, _ := loadMessagesData(messagesDataFile)
-	for i, msg := range messagesData.Messages {
-		if msg.MessageID == editedMessage.MessageID {
-			updatedMsg := Message{
-				UserID:      editedMessage.From.ID,
-				MessageID:   editedMessage.MessageID,
-				MediaGroupID: editedMessage.MediaGroupID,
-				Text:        newText,
-				Distance:    distance,
-				MessageDate: time.Now(),
-			}
-			if photoID != "" && photoPath != "" {
-				// Удаляем старое фото, если оно было
-				if msg.PhotoPath != "" {
-					if err := os.Remove(msg.PhotoPath); err != nil {
-						log.Printf("Ошибка удаления старого фото: %v", err)
-					}
-				}
-				updatedMsg.PhotoID = photoID
-				updatedMsg.PhotoPath = photoPath
-			} else {
-				// Сохраняем старые данные фото, если новые не были загружены
-				updatedMsg.PhotoID = msg.PhotoID
-				updatedMsg.PhotoPath = msg.PhotoPath
-			}
-			messagesData.Messages[i] = updatedMsg
-			break
-		}
-	}
-	saveMessagesData(messagesDataFile, messagesData)
-
-	replyText := fmt.Sprintf("Обновлено: %s км", FloatToString(distance))
-	msg := tgbotapi.NewMessage(editedMessage.Chat.ID, replyText)
-	bot.Send(msg)
-}
-
-// Обработка медиагруппы
-func handleMediaGroup(bot *tgbotapi.BotAPI, config Config, usersDataFile, messagesDataFile string, message *tgbotapi.Message) {
-	text := message.Caption
 	distance := extractDistance(text)
 	if distance <= 0 {
 		return
 	}
 
-	// Проверяем, есть ли уже сообщение с таким MediaGroupID
-	messagesData, _ := loadMessagesData(messagesDataFile)
-	var existingMessage *Message
-	for i, msg := range messagesData.Messages {
-		if msg.MediaGroupID == message.MediaGroupID {
-			existingMessage = &messagesData.Messages[i]
+	albumPhotos, err := saveAlbumPhotos(bot.Token, messages)
+	if err != nil {
+		log.Printf("Album photos save error: %v", err)
+		return
+	}
+
+	messagesData, err := loadMessagesData(messagesFile)
+	if err != nil {
+		log.Printf("Load messages error: %v", err)
+		return
+	}
+
+	messagesData.Messages = append(messagesData.Messages, Message{
+		UserID:        mainMsg.From.ID,
+		MessageID:     mainMsg.MessageID,
+		MediaGroupID:  mainMsg.MediaGroupID,
+		Text:          text,
+		Photos:        albumPhotos,
+		Distance:      distance,
+		MessageDate:   time.Now(),
+		IsAlbum:       true,
+		AlbumComplete: true,
+	})
+
+	if err := saveMessagesData(messagesFile, messagesData); err != nil {
+		log.Printf("Save messages error: %v", err)
+		return
+	}
+
+	replyText := fmt.Sprintf(
+		"Засчитано: %s км (альбом из %d фото)\nСтатистика: http://45.143.95.82:90/\nУдалить: /rm_%d",
+		FloatToString(distance),
+		len(albumPhotos),
+		mainMsg.MessageID,
+	)
+
+	msg := tgbotapi.NewMessage(mainMsg.Chat.ID, replyText)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Send message error: %v", err)
+	}
+}
+
+// handleSingleMessage обрабатывает одиночное сообщение
+func handleSingleMessage(bot *tgbotapi.BotAPI, messagesFile string, msg *tgbotapi.Message) {
+	text := msg.Text
+	if text == "" {
+		text = msg.Caption
+	}
+
+	distance := extractDistance(text)
+	if distance <= 0 {
+		return
+	}
+
+	if msg.Photo == nil {
+		bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Прикрепите скрин трека"))
+		return
+	}
+
+	var photos []AlbumPhoto
+	for _, photo := range msg.Photo {
+		filePath, err := savePhoto(bot.Token, photo.FileID)
+		if err != nil {
+			log.Printf("Photo save error: %v", err)
+			continue
+		}
+		photos = append(photos, AlbumPhoto{
+			FileID:   photo.FileID,
+			FilePath: filePath,
+		})
+	}
+
+	messagesData, err := loadMessagesData(messagesFile)
+	if err != nil {
+		log.Printf("Load messages error: %v", err)
+		return
+	}
+
+	messagesData.Messages = append(messagesData.Messages, Message{
+		UserID:      msg.From.ID,
+		MessageID:   msg.MessageID,
+		Text:        text,
+		Photos:      photos,
+		Distance:    distance,
+		MessageDate: time.Now(),
+	})
+
+	if err := saveMessagesData(messagesFile, messagesData); err != nil {
+		log.Printf("Save messages error: %v", err)
+		return
+	}
+
+	replyText := fmt.Sprintf(
+		"Засчитано: %s км\nСтатистика: http://45.143.95.82:90/\nУдалить: /rm_%d",
+		FloatToString(distance),
+		msg.MessageID,
+	)
+
+	bot.Send(tgbotapi.NewMessage(msg.Chat.ID, replyText))
+}
+
+// handleDelete обрабатывает команду удаления
+func handleDelete(bot *tgbotapi.BotAPI, config Config, messagesFile string, msg *tgbotapi.Message) {
+	userID := msg.From.ID
+	isAdmin := isAdmin(userID, config)
+
+	parts := strings.SplitN(msg.Text, "_", 2)
+	if len(parts) < 2 {
+		bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Формат: /rm_<ID>"))
+		return
+	}
+
+	msgID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Некорректный ID"))
+		return
+	}
+
+	messagesData, err := loadMessagesData(messagesFile)
+	if err != nil {
+		log.Printf("Load messages error: %v", err)
+		return
+	}
+
+	found := false
+	for i, m := range messagesData.Messages {
+		if m.MessageID == msgID {
+			if m.UserID == userID || isAdmin {
+				// Удаляем связанные фото
+				for _, photo := range m.Photos {
+					if err := os.Remove(photo.FilePath); err != nil {
+						log.Printf("Remove photo error: %v", err)
+					}
+				}
+				// Удаляем запись о сообщении
+				messagesData.Messages = append(messagesData.Messages[:i], messagesData.Messages[i+1:]...)
+				if err := saveMessagesData(messagesFile, messagesData); err != nil {
+					log.Printf("Save messages error: %v", err)
+				}
+				bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Удалено: #%d\n%s", msgID, m.Text)))
+			} else {
+				bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Нет прав для удаления"))
+			}
+			found = true
 			break
 		}
 	}
 
-	// Сохраняем только самое большое фото из сообщения
-	photoID, photoPath, err := saveLargestPhoto(bot.Token, message.Photo)
+	if !found {
+		bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Сообщение не найдено"))
+	}
+}
+
+// registerUser регистрирует нового пользователя
+func registerUser(usersFile string, user *tgbotapi.User) error {
+	usersData, err := loadUsersData(usersFile)
 	if err != nil {
-		log.Printf("Ошибка сохранения фото: %v", err)
-		return
+		return err
 	}
 
-	if existingMessage != nil {
-		// Обновляем существующее сообщение, если новое фото больше
-		existingPhotoSize := 0
-		if existingMessage.PhotoID != "" {
-			for _, ph := range message.Photo {
-				if ph.FileID == existingMessage.PhotoID {
-					existingPhotoSize = ph.Width * ph.Height
-					break
-				}
-			}
+	for _, u := range usersData.Users {
+		if u.UserID == user.ID {
+			return nil // Пользователь уже существует
 		}
-
-		newPhotoSize := message.Photo[len(message.Photo)-1].Width * message.Photo[len(message.Photo)-1].Height
-
-		if newPhotoSize > existingPhotoSize {
-			// Удаляем старое фото
-			if existingMessage.PhotoPath != "" {
-				if err := os.Remove(existingMessage.PhotoPath); err != nil {
-					log.Printf("Ошибка удаления старого фото: %v", err)
-				}
-			}
-			// Сохраняем новое
-			existingMessage.PhotoID = photoID
-			existingMessage.PhotoPath = photoPath
-			saveMessagesData(messagesDataFile, messagesData)
-		}
-	} else {
-		// Создаем новое сообщение
-		messagesData.Messages = append(messagesData.Messages, Message{
-			UserID:      message.From.ID,
-			MessageID:   message.MessageID,
-			MediaGroupID: message.MediaGroupID,
-			Text:        text,
-			PhotoID:     photoID,
-			PhotoPath:   photoPath,
-			Distance:    distance,
-			MessageDate: time.Now(),
-		})
-		saveMessagesData(messagesDataFile, messagesData)
-
-		// Отправляем ответ только для первого сообщения в группе
-		reply := fmt.Sprintf(
-			"Засчитано: %s км\nСтатистика: http://45.143.95.82:90/\nУдалить: /rm_%d",
-			FloatToString(distance),
-			message.MessageID,
-		)
-		bot.Send(tgbotapi.NewMessage(message.Chat.ID, reply))
 	}
+
+	usersData.Users = append(usersData.Users, User{
+		UserID:           user.ID,
+		UserFirstName:    user.FirstName,
+		UserLastName:     user.LastName,
+		Username:         user.UserName,
+		RegistrationDate: time.Now(),
+	})
+
+	return saveUsersData(usersFile, usersData)
 }
 
 func main() {
 	config, err := loadConfig("config.json")
 	if err != nil {
-		log.Panicf("Ошибка загрузки config.json: %v", err)
+		log.Panicf("Config load error: %v", err)
 	}
 
 	bot, err := tgbotapi.NewBotAPI(config.BotToken)
@@ -495,162 +571,53 @@ func main() {
 		log.Panic(err)
 	}
 	bot.Debug = false
-	log.Printf("Бот запущен: @%s", bot.Self.UserName)
+	log.Printf("Bot started: @%s", bot.Self.UserName)
 
-	usersDataFile := "JSON/users_data.json"
-	messagesDataFile := "JSON/messages_data.json"
+	usersFile := "JSON/users_data.json"
+	messagesFile := "JSON/messages_data.json"
 
-	go setupRESTAPI(usersDataFile, messagesDataFile)
+	go setupRESTAPI(usersFile, messagesFile)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 10
 	updates := bot.GetUpdatesChan(u)
 
-	// Кэш для отслеживания обработанных медиагрупп
-	processedMediaGroups := make(map[string]bool)
+	tracker := NewAlbumTracker()
+	waitTime := time.Duration(config.AlbumWaitTime) * time.Second
+	if waitTime == 0 {
+		waitTime = 5 * time.Second
+	}
 
 	for update := range updates {
-		if update.Message != nil && update.Message.From.ID == bot.Self.ID {
-			continue
-		}
-
-		// Обработка команды удаления
-		if update.Message != nil && strings.HasPrefix(update.Message.Text, "/rm") {
-			userID := update.Message.From.ID
-			isAdmin := isAdmin(userID, config)
-
-			parts := strings.SplitN(update.Message.Text, "_", 2)
-			if len(parts) < 2 {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Формат: /rm_<ID>")
-				bot.Send(msg)
-				continue
-			}
-
-			messageID, err := strconv.Atoi(parts[1])
-			if err != nil {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Некорректный ID")
-				bot.Send(msg)
-				continue
-			}
-
-			messagesData, _ := loadMessagesData(messagesDataFile)
-			found := false
-			for i, msg := range messagesData.Messages {
-				if msg.MessageID == messageID {
-					if msg.UserID == userID || isAdmin {
-						// Удаляем связанное фото
-						if msg.PhotoPath != "" {
-							if err := os.Remove(msg.PhotoPath); err != nil {
-								log.Printf("Ошибка удаления файла %s: %v", msg.PhotoPath, err)
-							}
-						}
-						// Удаляем запись о сообщении
-						messagesData.Messages = append(messagesData.Messages[:i], messagesData.Messages[i+1:]...)
-						saveMessagesData(messagesDataFile, messagesData)
-						reply := fmt.Sprintf("Удалено: #%d\n%s", messageID, msg.Text)
-						bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, reply))
-						found = true
-					} else {
-						bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "У вас нет прав для удаления этого сообщения"))
-					}
-					break
-				}
-			}
-
-			if !found {
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Сообщение не найдено"))
-			}
-			continue
-		}
-
-		if update.EditedMessage != nil {
-			handleEditedMessage(bot, config, usersDataFile, messagesDataFile, update.EditedMessage)
-			continue
-		}
-
 		if update.Message == nil {
 			continue
 		}
 
+		// Игнорируем сообщения от самого бота
+		if update.Message.From.ID == bot.Self.ID {
+			continue
+		}
+
+		// Обработка команды удаления
+		if strings.HasPrefix(update.Message.Text, "/rm") {
+			handleDelete(bot, config, messagesFile, update.Message)
+			continue
+		}
+
 		// Регистрация пользователя
-		user := update.Message.From
-		avatarPath, err := saveUserAvatar(bot.Token, user.ID)
-		if err != nil {
-			log.Printf("Ошибка сохранения аватара пользователя %d: %v", user.ID, err)
-		} else if avatarPath != "" {
-			log.Printf("Аватар пользователя %d сохранен: %s", user.ID, avatarPath)
+		if err := registerUser(usersFile, update.Message.From); err != nil {
+			log.Printf("User registration error: %v", err)
 		}
 
-		usersData, _ := loadUsersData(usersDataFile)
-		userExists := false
-		for _, u := range usersData.Users {
-			if u.UserID == user.ID {
-				userExists = true
-				break
-			}
-		}
-
-		if !userExists {
-			usersData.Users = append(usersData.Users, User{
-				UserID:           user.ID,
-				UserFirstName:    user.FirstName,
-				UserLastName:     user.LastName,
-				Username:         user.UserName,
-				RegistrationDate: time.Now(),
-			})
-			saveUsersData(usersDataFile, usersData)
-		}
-
-		// Обработка медиагруппы
+		// Обработка альбома
 		if update.Message.MediaGroupID != "" {
-			// Проверяем, обрабатывали ли мы уже эту медиагруппу
-			if _, processed := processedMediaGroups[update.Message.MediaGroupID]; !processed {
-				processedMediaGroups[update.Message.MediaGroupID] = true
-				handleMediaGroup(bot, config, usersDataFile, messagesDataFile, update.Message)
-			}
+			tracker.AddMessage(update.Message, waitTime, func(msgs []*tgbotapi.Message) {
+				handleAlbum(bot, messagesFile, msgs)
+			})
 			continue
 		}
 
-		// Обработка одиночного сообщения с фото
-		text := update.Message.Text
-		if text == "" {
-			text = update.Message.Caption
-		}
-
-		distance := extractDistance(text)
-		if distance <= 0 {
-			continue
-		}
-
-		if update.Message.Photo == nil {
-			bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Прикрепите скрин трека"))
-			continue
-		}
-
-		// Сохраняем только самое большое фото
-		photoID, photoPath, err := saveLargestPhoto(bot.Token, update.Message.Photo)
-		if err != nil {
-			log.Printf("Ошибка сохранения фото: %v", err)
-			continue
-		}
-
-		messagesData, _ := loadMessagesData(messagesDataFile)
-		messagesData.Messages = append(messagesData.Messages, Message{
-			UserID:      user.ID,
-			MessageID:   update.Message.MessageID,
-			Text:        text,
-			PhotoID:     photoID,
-			PhotoPath:   photoPath,
-			Distance:    distance,
-			MessageDate: time.Now(),
-		})
-		saveMessagesData(messagesDataFile, messagesData)
-
-		reply := fmt.Sprintf(
-			"Засчитано: %s км\nСтатистика: http://45.143.95.82:90/\nУдалить: /rm_%d",
-			FloatToString(distance),
-			update.Message.MessageID,
-		)
-		bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, reply))
+		// Обработка одиночного сообщения
+		handleSingleMessage(bot, messagesFile, update.Message)
 	}
 }
