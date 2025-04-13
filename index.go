@@ -322,7 +322,7 @@ func saveUserAvatar(botToken string, userID int64) (string, error) {
 
 	// Создаем папку photos если ее нет
 	if _, err := os.Stat("photos"); os.IsNotExist(err) {
-		os.Mkdir("photos", 0755)
+		os.Mkdir("photos", 0777)
 	}
 
 	// Сохраняем под именем avatar_<userID>.jpg
@@ -399,7 +399,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	bot.Debug = false
+	bot.Debug = true
 	log.Printf("Бот запущен: @%s", bot.Self.UserName)
 
 	usersDataFile := "JSON/users_data.json"
